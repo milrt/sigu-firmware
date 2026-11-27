@@ -1,0 +1,225 @@
+# Everything builds in the build container (docker/Dockerfile), with the commands from the
+# README. The workspace (the parent of sigu-firmware/, as in
+# west) is mounted at /work, because source paths end up in the firmware.
+
+name: ci
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  firmware:
+    strategy:
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    name: firmware (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: sigu-firmware
+
+      - uses: ./sigu-firmware/.github/actions/build-image
+
+      - name: Release build
+        run: |
+          docker run -i --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$GITHUB_WORKSPACE:/work" \
+            -w /work sigu-build:ci bash -euo pipefail <<'EOF'
+          export LC_ALL=C TZ=UTC
+          umask 022
+          west init -l sigu-firmware
+          west update --narrow -o=--depth=1
+          west patch clean && west patch apply
+          cd sigu-firmware
+          # TF-M prints its build time at boot. CMake takes it from SOURCE_DATE_EPOCH.
+          export SOURCE_DATE_EPOCH=$(git log -1 --format=%ct)
+          # Public throwaway keys, the private key is SHA-256("sigu throwaway <name>"), so two
+          # builds are byte identical. They are not files in the repo, because
+          # app/sysbuild.cmake refuses a key there.
+          printf '%s\n' '-----BEGIN PRIVATE KEY-----' \
+            'MC4CAQAwBQYDK2VwBCIEIP6tgD72vIcArAkktUk0kOuHI1YA0nDrTAKWWQsin/g2' \
+            '-----END PRIVATE KEY-----' >/tmp/nsib.pem
+          printf '%s\n' '-----BEGIN PRIVATE KEY-----' \
+            'MC4CAQAwBQYDK2VwBCIEIHh3Bo1TfJEvBRTE2xbNIX/GJb4lsgx+tMHE5qDQ9P+L' \
+            '-----END PRIVATE KEY-----' >/tmp/mcuboot.pem
+          # Kconfig strings need the quotes in the value.
+          west build -p -b nrf54l15dk/nrf54l15/cpuapp/ns -d app/build-repro app -- \
+            -DSB_CONFIG_SECURE_BOOT_SIGNING_KEY_FILE=\"/tmp/nsib.pem\" \
+            -DSB_CONFIG_BOOT_SIGNATURE_KEY_FILE=\"/tmp/mcuboot.pem\"
+          mkdir -p app/build-repro-out
+          cp app/build-repro/app/zephyr/zephyr.signed.bin app/build-repro-out/sigu-app.bin
+          cp app/build-repro/signed_by_mcuboot_and_b0_mcuboot.bin \
+            app/build-repro-out/sigu-mcuboot-s0.bin
+          cp app/build-repro/signed_by_mcuboot_and_b0_mcuboot_s1_variant.bin \
+            app/build-repro-out/sigu-mcuboot-s1.bin
+          cd app/build-repro-out && sha256sum sigu-*.bin | tee SHA256SUMS
+          EOF
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: firmware-${{ matrix.arch }}
+          path: sigu-firmware/app/build-repro-out
+
+  reproducible:
+    needs: firmware
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: firmware-*
+
+      - name: Compare amd64 and arm64
+        run: |
+          cat firmware-amd64/SHA256SUMS
+          for f in firmware-amd64/*; do cmp "$f" "firmware-arm64/${f#*/}"; done
+
+  dev:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: sigu-firmware
+
+      - uses: ./sigu-firmware/.github/actions/build-image
+
+      - name: Dev build
+        run: |
+          docker run -i --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$GITHUB_WORKSPACE:/work" \
+            -w /work sigu-build:ci bash -euo pipefail <<'EOF'
+          export LC_ALL=C TZ=UTC
+          umask 022
+          west init -l sigu-firmware
+          west update --narrow -o=--depth=1
+          west patch clean && west patch apply
+          cd sigu-firmware
+          # TF-M prints its build time at boot. CMake takes it from SOURCE_DATE_EPOCH.
+          export SOURCE_DATE_EPOCH=$(git log -1 --format=%ct)
+          west build -p -b nrf54l15dk/nrf54l15/cpuapp/ns -d app/build app -- \
+            -DSB_EXTRA_CONF_FILE=sysbuild_dev.conf -DEXTRA_CONF_FILE=prj_dev.conf
+          EOF
+
+  sim:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: desktop
+            build: cmake -G Ninja -S sim -B sim/build && cmake --build sim/build
+            test: python sim/tests/run.py
+          - name: sanitize
+            build: >-
+              cmake -G Ninja -S sim -B sim/build-asan -DCMAKE_C_COMPILER=clang
+              -DSIGU_SIM_SANITIZE=ON && cmake --build sim/build-asan
+            test: SIGU_SIM=sim/build-asan/sigu-sim python sim/tests/run.py
+          - name: web
+            build: >-
+              source /opt/emsdk/emsdk_env.sh >/dev/null 2>&1 &&
+              emcmake cmake -G Ninja -S sim -B sim/build-web && cmake --build sim/build-web
+            test: >-
+              source /opt/emsdk/emsdk_env.sh >/dev/null 2>&1 &&
+              SIGU_SIM_WEB=1 python sim/tests/run.py
+          # libFuzzer, 60 s a target, from the make_corpus.py seeds. A target uses one core, so
+          # the targets run in parallel, one per core. xargs fails if any target fails.
+          - name: fuzz
+            build: >-
+              cmake -G Ninja -S sim -B sim/build-fuzz -DCMAKE_C_COMPILER=clang
+              -DSIGU_SIM_FUZZ=ON && cmake --build sim/build-fuzz
+            test: |
+              set -e
+              python sim/fuzz/make_corpus.py sim/build-fuzz/corpus
+              mkdir -p sim/build-fuzz/crashes
+              find sim/build-fuzz/fuzz -maxdepth 1 -type f -perm -u+x -name 'fuzz_*' |
+                xargs -P "$(nproc)" -n 1 sh -ec '
+                  f=$1 t=$(basename "$1") dict=
+                  case $t in fuzz_psbt|fuzz_prev_tx) dict=-dict=sim/fuzz/psbt.dict ;; esac
+                  mkdir -p sim/build-fuzz/corpus/$t
+                  "$f" $dict -max_total_time=60 -max_len=4200 \
+                    -artifact_prefix=sim/build-fuzz/crashes/$t- sim/build-fuzz/corpus/$t
+                ' sh
+    name: sim (${{ matrix.name }})
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: sigu-firmware
+
+      - uses: ./sigu-firmware/.github/actions/build-image
+
+      # Only the external/ repos the sim needs, as in the README.
+      - name: West update
+        run: |
+          docker run -i --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$GITHUB_WORKSPACE:/work" \
+            -w /work sigu-build:ci bash -euo pipefail <<'EOF'
+          west init -l sigu-firmware
+          west config manifest.project-filter -- \
+            '-.*,+sdk-nrf,+mcuboot,+secp256k1,+bips,+libbase58,+QR-Code-generator'
+          west update --narrow -o=--depth=1
+          EOF
+
+      - name: Build
+        run: |
+          docker run -i --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$GITHUB_WORKSPACE:/work" \
+            -w /work/sigu-firmware sigu-build:ci bash -euo pipefail <<'EOF'
+          ${{ matrix.build }}
+          EOF
+
+      - name: Test
+        run: |
+          docker run -i --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$GITHUB_WORKSPACE:/work" \
+            -w /work/sigu-firmware sigu-build:ci bash -euo pipefail <<'EOF'
+          ${{ matrix.test }}
+          EOF
+
+      - name: Collect the page
+        if: >-
+          matrix.name == 'web' && github.event_name == 'push' &&
+          github.ref == 'refs/heads/main' && !github.event.repository.private
+        run: |
+          mkdir -p _site
+          cp sigu-firmware/sim/build-web/{index.html,sigu-sim.js,sigu-sim.wasm} _site/
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: matrix.name == 'fuzz' && failure()
+        with:
+          name: fuzz-crashes
+          path: sigu-firmware/sim/build-fuzz/crashes
+
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        if: >-
+          matrix.name == 'web' && github.event_name == 'push' &&
+          github.ref == 'refs/heads/main' && !github.event.repository.private
+        with:
+          path: _site
+
+  pages:
+    needs: sim
+    # Pages needs a public repo on the free plan.
+    if: >-
+      github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+      !github.event.repository.private
+    runs-on: ubuntu-24.04
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

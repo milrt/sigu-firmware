@@ -1,0 +1,19 @@
+# Local patches to modules in external/. Apply them after every `west update`:
+#
+#   west patch clean && west patch apply
+#
+# app/CMakeLists.txt fails the build when one is missing. After a change to a patch file,
+# update its sha256sum (shasum -a 256 <file>).
+patches:
+  - path: tf-m/slot0-ns-read-only.patch
+    sha256sum: 19a8bfd62937c066520e548e8ebcc57b24f90b0b8142a5138b83ca32c24fc57f
+    module: external/modules/tee/tf-m/trusted-firmware-m
+    author: milrt
+    email: milrt@proton.me
+    date: 2026-11-22
+    upstreamable: false
+    comments: |
+      TF-M + NS is one MCUboot image, and TF-M lets NS write slot0_ns. One NS write there
+      leaves no bootable image, and only ERASEALL (which wipes the wallet) recovers. This makes
+      slot0_ns read-only for NS in the MPC, except its last sector: the MCUboot trailer, where
+      NS confirms a new app.

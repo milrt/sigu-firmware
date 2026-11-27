@@ -1,0 +1,37 @@
+diff --git a/platform/ext/target/nordic_nrf/common/core/target_cfg_54l.c b/platform/ext/target/nordic_nrf/common/core/target_cfg_54l.c
+index 0a0cd52d5..d509946e7 100644
+--- a/platform/ext/target/nordic_nrf/common/core/target_cfg_54l.c
++++ b/platform/ext/target/nordic_nrf/common/core/target_cfg_54l.c
+@@ -238,12 +238,32 @@ enum tfm_plat_err_t nrf_mpc_init_cfg(void)
+ 	 * non-secure partition in the NVM and also the FICR. The FICR
+ 	 * starts after the NVM and ends just before the UICR.
+ 	 */
++	/*
++	 * sigu: the NS image is part of the one MCUboot image that holds TF-M, so an NS write
++	 * there leaves nothing that boots. Make it read-only for everyone. Keep its last sector
++	 * writable: it holds only the MCUboot trailer, where NS confirms a new image. The rest
++	 * (slot1, storage, FICR) keeps the default permissions.
++	 */
++	const uint32_t ns_trailer = memory_regions.non_secure_partition_limit + 1 -
++				    FLASH_AREA_IMAGE_SECTOR_SIZE;
+ 	{
+ 		struct mpc_region_override override;
+ 
+ 		init_mpc_region_override(&override);
+ 
+ 		override.start_address = memory_regions.non_secure_partition_base;
++		override.endaddr = ns_trailer;
++		override.permmask |= MPC_OVERRIDE_PERMMASK_WRITE_Msk; /* perm.WRITE is 0 */
++		override.index = index++;
++
++		mpc_configure_override(NRF_MPC00, &override);
++	}
++	{
++		struct mpc_region_override override;
++
++		init_mpc_region_override(&override);
++
++		override.start_address = ns_trailer;
+ 		override.endaddr = NRF_UICR_S_BASE;
+ 		override.index = index++;
+ 

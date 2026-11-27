@@ -1,0 +1,6 @@
+CompileFlags:
+  Add:
+    - -Wno-unknown-warning-option
+    - -ferror-limit=0
+  Remove: [-fno-reorder-functions, -fno-freestanding, -fno-defer-pop, -fno-printf-return-value, -fno-strict-overflow, -fdiagnostics-color=*, -mfp16-format=*, -fmacro-prefix-map=*, -fstack-usage, -fno-pic, -specs=*, --param=*]
+  CompilationDatabase: .

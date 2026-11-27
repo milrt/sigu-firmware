@@ -1,0 +1,14 @@
+// Copyright (C) 2025 milrt <milrt@proton.me>
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+&cpuapp_rram {
+    /delete-node/ partitions;
+};
+
+#include "../boards/sigu_partitions.dtsi"
+
+/ {
+    chosen {
+        zephyr,code-partition = &b0_partition;
+    };
+};

@@ -1,0 +1,23 @@
+# The Python packages of the build container. Versions are the ones NCS v3.4.0 pins in
+# external/nrf/scripts/requirements-fixed.txt. A firmware build needs only these. Lock with:
+#   docker/lock-requirements.sh
+# Zephyr, sysbuild and west
+west==1.5.0
+pyelftools==0.32
+pyyaml==6.0.3
+pykwalify==1.8.0
+jsonschema==4.26.0
+packaging==25.0
+anytree==2.13.0
+# imgtool, b0 signing and NCS scripts
+cryptography==46.0.7
+click==8.4.1
+cbor2==5.9.0
+intelhex==2.3.0
+ecdsa==0.19.2
+zcbor==0.8.1
+setuptools==80.10.1
+# TF-M manifest tool
+jinja2==3.1.6
+# sim/tests
+btclib==2026.9.10

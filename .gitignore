@@ -1,0 +1,16 @@
+# editors
+*.swp
+*~
+
+# python
+.venv
+
+# build
+app/build*
+app/twister-out*
+sim/build*
+__pycache__/
+
+# clang
+compile_commands.json
+.cache

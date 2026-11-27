@@ -1,0 +1,58 @@
+manifest:
+  self:
+    path: sigu-firmware
+
+  remotes:
+    - name: nrf
+      url-base: https://github.com/nrfconnect
+    - name: bitcoin-core
+      url-base: https://github.com/bitcoin-core
+    - name: bitcoin
+      url-base: https://github.com/bitcoin
+    - name: nayuki
+      url-base: https://github.com/nayuki
+
+  projects:
+    - name: sdk-nrf
+      remote: nrf
+      path: nrf
+      revision: v3.4.0
+      import:
+        path-prefix: external
+        name-allowlist:
+          - zephyr
+          - mcuboot
+          - trusted-firmware-m
+          - qcbor
+          - t_cose
+          - mbedtls
+          - oberon-psa-crypto
+          - tf-psa-crypto
+          - nrfxlib
+          - hal_nordic
+          - cmsis
+          - cmsis_6
+          - picolibc
+          - zcbor
+          - fatfs
+      clone-depth: 1
+
+    - name: secp256k1
+      remote: bitcoin-core
+      revision: v0.8.0
+      path: external/bitcoin/secp256k1
+
+    - name: bips
+      remote: bitcoin
+      revision: b9f9a8d6e854fa0b0c8f818753420b0aa6e875aa
+      path: external/bitcoin/bips
+
+    - name: libbase58
+      remote: bitcoin
+      revision: b1dd03fa8d1be4be076bb6152325c6b5cf64f678
+      path: external/bitcoin/libbase58
+
+    - name: QR-Code-generator
+      remote: nayuki
+      revision: 720f62bddb7226106071d4728c292cb1df519ceb # v1.8.0
+      path: external/qrcodegen

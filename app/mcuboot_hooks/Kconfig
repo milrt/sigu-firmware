@@ -1,0 +1,9 @@
+# Copyright (C) 2025 milrt <milrt@proton.me>
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# MCUboot sets MBEDTLS_PROMPTLESS, so a .conf file cannot turn on a PSA_WANT_* option. Only a
+# select can. hooks.c hashes slot1 with SHA-256, as the panel does. The image hash is SHA-512.
+config SIGU_MCUBOOT_HOOKS
+	bool
+	default y if MCUBOOT
+	select PSA_WANT_ALG_SHA_256

@@ -1,0 +1,12 @@
+# Copyright (C) 2025 milrt <milrt@proton.me>
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+source "share/sysbuild/Kconfig"
+
+config SIGU_RELEASE
+	bool "Release image"
+	help
+	  Set by sysbuild.conf, and turned off by sysbuild_dev.conf. sysbuild.cmake
+	  refuses a missing, default, in-repo or shared signing key for b0 and
+	  MCUboot. It also sets CONFIG_SIGU_RELEASE in the app, and
+	  app/CMakeLists.txt then refuses the dev features of prj_dev.conf.

@@ -1,0 +1,90 @@
+// Copyright (C) 2025 milrt <milrt@proton.me>
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+&cpuapp_rram {
+    partitions {
+        ranges;
+        #address-cells = <1>;
+        #size-cells = <1>;
+
+        b0_partition: partition@0 {
+            compatible = "zephyr,mapped-partition";
+            label = "nsib";
+            reg = <0x0 DT_SIZE_K(30)>;
+        };
+
+        // The install record (shared/install_auth.h), in the 2K gap after b0. It is below
+        // slot0_ns, so NS cannot write it. The SP writes it after OK on the panel, and MCUboot
+        // reads it before any swap. The bootconf lock covers only b0's 30K, so both can write.
+        sigu_install_partition: partition@7800 {
+            compatible = "zephyr,mapped-partition";
+            label = "sigu-install";
+            reg = <0x7800 DT_SIZE_K(2)>;
+        };
+
+        s0_partition: boot_partition: partition@8000 {
+            compatible = "zephyr,mapped-partition";
+            label = "mcuboot";
+            reg = <0x8000 DT_SIZE_K(68)>;
+        };
+
+        s1_partition: partition@19000 {
+            compatible = "zephyr,mapped-partition";
+            label = "mcuboot_s1";
+            reg = <0x19000 DT_SIZE_K(68)>;
+        };
+
+        // PS, ITS and the NV counters must stay below slot0_ns. TF-M makes everything from
+        // slot0_ns up to the end of RRAM non-secure, so NS could erase them up there.
+        tfm_ps_partition: partition@2a000 {
+            compatible = "zephyr,mapped-partition";
+            label = "tfm-ps";
+            reg = <0x2a000 DT_SIZE_K(16)>;
+        };
+
+        tfm_its_partition: partition@2e000 {
+            compatible = "zephyr,mapped-partition";
+            label = "tfm-its";
+            reg = <0x2e000 DT_SIZE_K(16)>;
+        };
+
+        tfm_otp_partition: partition@32000 {
+            compatible = "zephyr,mapped-partition";
+            label = "tfm-otp";
+            reg = <0x32000 DT_SIZE_K(8)>;
+        };
+
+        // One MCUboot image: the signed tfm_merged.hex.
+        slot0_partition: partition@34000 {
+            compatible = "zephyr,mapped-partition";
+            label = "image-0";
+            reg = <0x34000 DT_SIZE_K(628)>;
+            ranges = <0x0 0x34000 DT_SIZE_K(628)>;
+            #address-cells = <1>;
+            #size-cells = <1>;
+
+            // TF-M starts after the 2 KB MCUboot header (CONFIG_TFM_MCUBOOT_HEADER_SIZE).
+            slot0_s_partition: partition@0 {
+                compatible = "zephyr,mapped-partition";
+                label = "image-0-secure";
+                reg = <0x0 DT_SIZE_K(320)>;
+            };
+
+            slot0_ns_partition: partition@50000 {
+                compatible = "zephyr,mapped-partition";
+                label = "image-0-nonsecure";
+                reg = <0x50000 DT_SIZE_K(308)>;
+            };
+        };
+
+        // NS writes updates from the SD card here. MCUboot checks the signature. One sector
+        // smaller than slot0, the layout swap-using-move wants.
+        slot1_partition: partition@d1000 {
+            compatible = "zephyr,mapped-partition";
+            label = "image-1";
+            reg = <0xd1000 DT_SIZE_K(624)>;
+        };
+
+        // 0x16d000 to the end of RRAM (64K) is unused. Do not grow slot1 into it.
+    };
+};

@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>sigu simulator</title>
+<style>
+  :root { --bg: #f4f5f7; --ink: #1c1d21; --mute: #5f6672; --line: #dfe2e7; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #121316; --ink: #e9eaee; --mute: #9aa0aa; --line: #2c2e34; }
+  }
+  body {
+    margin: 0 auto; max-width: 400px; padding: 16px;
+    background: var(--bg); color: var(--ink); font: 14px/1.5 system-ui, sans-serif;
+  }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  p { margin: 4px 0; color: var(--mute); }
+  /* SDL sets the size: one CSS pixel per panel pixel. A narrow screen shrinks it. */
+  canvas {
+    display: block; max-width: 100%; height: auto !important;
+    margin: 12px 0; border-radius: 16px; background: #1e1f22; outline: none;
+    touch-action: manipulation;
+  }
+  canvas, button, label { -webkit-tap-highlight-color: transparent; user-select: none; }
+  .bar { display: flex; gap: 8px; margin: 0 0 8px; }
+  .bar button { flex: 1; }
+  ul { list-style: none; padding: 0; margin: 8px 0; }
+  li { display: flex; gap: 8px; align-items: center; padding: 4px 0; border-top: 1px solid var(--line); }
+  li span { flex: 1; overflow-wrap: anywhere; }
+  button, label {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-height: 40px; padding: 0 12px; box-sizing: border-box;
+    border: 1px solid var(--line); border-radius: 8px;
+    background: transparent; color: var(--ink); font: inherit; cursor: pointer;
+  }
+  button:disabled { opacity: 0.5; cursor: default; }
+  input[type=file] { display: none; }
+</style>
+</head>
+<body>
+<h1>sigu simulator</h1>
+<p>Not for real funds. The wallet is stored in this browser.</p>
+
+<canvas id="canvas" width="260" height="306" tabindex="0"></canvas>
+
+<div class="bar">
+  <button id="card" disabled>Card out</button>
+  <button id="restart" disabled>Restart</button>
+  <button id="wipe" disabled>Wipe</button>
+</div>
+<p>Tap the three keys under the panel. Keyboard: A, S and D press them, C takes the card out or
+  puts it in, R restarts and W wipes.</p>
+
+<h1>SD card</h1>
+<ul id="files"></ul>
+<label for="upload">Add PSBT…</label>
+<input type="file" id="upload" accept=".psbt" multiple>
+<p>The device reads the card when it goes in. Take it out and put it back in to see new
+  files.</p>
+
+<script>
+(function () {
+  const CARD = '/sigu/card';
+  const files = document.getElementById('files');
+  const cardButton = document.getElementById('card');
+  let ready = false;
+  let saving = false;
+  let cardIn = true; // the web build starts with the card in
+
+  // Saves /sigu (the wallet and the card) to IndexedDB.
+  function save(done) {
+    if (saving) return done && setTimeout(() => save(done), 100);
+    saving = true;
+    FS.syncfs(false, () => { saving = false; if (done) done(); });
+  }
+
+  function list() {
+    let names = [];
+    try { names = FS.readdir(CARD).filter((n) => n[0] !== '.').sort(); } catch (e) { }
+    if (files.dataset.names === names.join('/')) return;
+    files.dataset.names = names.join('/');
+    files.textContent = '';
+    for (const name of names) {
+      const li = document.createElement('li');
+      const span = document.createElement('span');
+      const get = document.createElement('button');
+      const del = document.createElement('button');
+      span.textContent = name;
+      get.textContent = 'Download';
+      get.onclick = () => {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(new Blob([FS.readFile(CARD + '/' + name)]));
+        a.download = name;
+        a.click();
+      };
+      del.textContent = 'Delete';
+      del.onclick = () => { FS.unlink(CARD + '/' + name); save(); list(); };
+      li.append(span, get, del);
+      files.append(li);
+    }
+  }
+
+  document.getElementById('upload').onchange = async (e) => {
+    for (const f of e.target.files) {
+      FS.writeFile(CARD + '/' + f.name, new Uint8Array(await f.arrayBuffer()));
+    }
+    e.target.value = '';
+    save();
+    list();
+  };
+  // Removes the wallet from the device's storage. The SD card is not the device, so it stays.
+  function wipe() {
+    if (!confirm('Wipe the device? The wallet is erased. The SD card keeps its files.')) return;
+    for (const n of FS.readdir('/sigu/ps')) {
+      if (n !== '.' && n !== '..') FS.unlink('/sigu/ps/' + n);
+    }
+    save(() => location.reload());
+  }
+
+  function restart() { save(() => location.reload()); }
+
+  // R and W. A, S, D and C go to the sim itself (window.c).
+  addEventListener('keydown', (e) => {
+    if (!ready || e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.key === 'r' || e.key === 'R') restart();
+    if (e.key === 'w' || e.key === 'W') wipe();
+  });
+
+  // From the console: sigu.command("key d"). The reply is in the console log.
+  window.sigu = { command: (line) => Module.ccall('sim_web_command', 'number', ['string'], [line]) };
+
+  cardButton.onclick = () => sigu.command(cardIn ? 'card out' : 'card in');
+  document.getElementById('restart').onclick = restart;
+  document.getElementById('wipe').onclick = wipe;
+
+  window.Module = {
+    canvas: document.getElementById('canvas'),
+    preRun: [() => {
+      FS.mkdir('/sigu');
+      FS.mount(IDBFS, {}, '/sigu');
+      addRunDependency('idb');
+      FS.syncfs(true, () => removeRunDependency('idb'));
+    }],
+    print: (line) => {
+      // SDL names its window, and on the web that is the page title. Keep the page's own.
+      if (line === 'ready') {
+        ready = true;
+        document.title = 'sigu simulator';
+        for (const b of document.querySelectorAll('.bar button')) b.disabled = false;
+        Module.canvas.focus();
+      }
+      console.log(line);
+    },
+    // The sim says when the card moves, from the button or from C. The label follows it.
+    printErr: (line) => {
+      const m = /^\[SIM\] card (in|out)$/.exec(line);
+      if (m) {
+        cardIn = m[1] === 'in';
+        cardButton.textContent = cardIn ? 'Card out' : 'Card in';
+      }
+      console.log(line);
+    },
+  };
+
+  // The firmware writes the wallet and the card. Save them now and then.
+  setInterval(() => { if (ready) { save(); list(); } }, 1500);
+  addEventListener('pagehide', () => { if (ready) save(); });
+})();
+</script>
+<script src="sigu-sim.js"></script>
+</body>
+</html>

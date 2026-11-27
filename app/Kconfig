@@ -1,0 +1,31 @@
+# Copyright (C) 2025 milrt <milrt@proton.me>
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+config SIGU_SELFTEST
+	bool "Build the self-test wallet and the TFM_BITCOIN_TEST service"
+	help
+	  Adds the second service to the partition, the test wallet session with
+	  programmatic approval, and both test suites. It is off by default, so the
+	  default image has one wallet session and no way to approve a transaction
+	  without OK on the review screen. prj_dev.conf turns it on. The non-secure
+	  sources see CONFIG_SIGU_SELFTEST, the partition sources see SIGU_SELFTEST.
+
+config SIGU_RELEASE
+	bool "Release image (set by sysbuild)"
+	help
+	  Set by sysbuild from SB_CONFIG_SIGU_RELEASE. app/CMakeLists.txt then
+	  refuses the self-tests, the shell and the TF-M exception dump.
+
+config SIGU_WATCHDOG_TIMEOUT_MS
+	int "WDT31 timeout in ms"
+	default 8000
+	help
+	  NS feeds WDT31 after each status call to the partition, so the
+	  timeout must be longer than the longest partition call. A reset
+	  before the confirm of a new app makes MCUboot swap the old one back.
+	  prj_dev.conf raises it for the shell self-tests.
+
+menu "Zephyr"
+source "Kconfig.zephyr"
+endmenu
+
