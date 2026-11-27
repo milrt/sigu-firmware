@@ -6,6 +6,8 @@
 //                             has handled it
 //   wait <ms>
 //   ticks <n>                 run n display ticks at once (the idle lock is 15000)
+//   tick hold|go              hold back the display tick, after the one in flight, or let it
+//                             run again. Not with ticks or key, which wait for ticks
 //   shot <file.png>           save the panel
 //   text                      the text on the panel now, each drawn line joined with " | "
 //   card in|out               put the SD card in the slot, or take it out
@@ -357,6 +359,13 @@ bool sim_control_line(const char *line)
     }
     if (!strcmp(cmd, "wait")) {
         sched_sleep_ms((uint32_t)strtol(arg, NULL, 10));
+        return reply(true, NULL);
+    }
+    if (!strcmp(cmd, "tick")) {
+        if (strcmp(arg, "hold") && strcmp(arg, "go")) {
+            return reply(false, "usage: tick hold|go");
+        }
+        sim_ipc_hold_irqs(!strcmp(arg, "hold"));
         return reply(true, NULL);
     }
     if (!strcmp(cmd, "ticks")) {

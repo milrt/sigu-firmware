@@ -37,6 +37,9 @@ struct message {
 
 static psa_signal_t asserted;
 static psa_signal_t irq_enabled;
+// "tick hold": IRQs raised while held wait here until "tick go".
+static bool irq_held;
+static psa_signal_t irq_deferred;
 static bool sp_ready;
 static uint32_t ticks;
 static struct message cur;
@@ -213,8 +216,28 @@ void sim_ipc_wait_ticks(uint32_t n)
 void sim_ipc_irq(uint32_t signal)
 {
     sched_lock();
-    if (irq_enabled & signal) {
+    if (irq_held) {
+        irq_deferred |= irq_enabled & signal;
+    } else if (irq_enabled & signal) {
         asserted |= signal;
+        sched_wake();
+    }
+    sched_unlock();
+}
+
+// An IRQ already asserted would run its tick right after the next message,
+// so hold waits until the SP has finished it.
+void sim_ipc_hold_irqs(bool hold)
+{
+    sched_lock();
+    irq_held = hold;
+    if (hold) {
+        while (asserted & irq_enabled) {
+            sched_wait();
+        }
+    } else if (irq_deferred) {
+        asserted |= irq_deferred;
+        irq_deferred = 0;
         sched_wake();
     }
     sched_unlock();

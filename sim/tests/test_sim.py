@@ -1265,8 +1265,11 @@ class SimTest(unittest.TestCase):
     def test_swap_under_review_ends_it(self):
         # The same amounts to another address. A review that restarted on it would look the
         # same on the total page, and the same keys would sign it.
+        # No tick between the calls, as from a fast NS. A slow one is the next test.
         sim = self.review_from_ns()
+        sim.ok("tick hold")
         self.assertEqual(stream_tx(sim, self.ATTACKER_SCRIPT), 0)
+        sim.ok("tick go")
         sim.ok("wait 450")
         self.assertFalse(sim.text().startswith("Review"))
         sim.keys(MIDDLE)

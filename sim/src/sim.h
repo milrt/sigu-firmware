@@ -29,6 +29,10 @@ uint32_t sim_ipc_ticks(void);
 
 // Runs `n` display ticks now, without the 20 ms between them.
 void sim_tick_burst(uint32_t n);
+// With `hold`, no IRQ reaches the SP and an asserted one is finished first.
+// Without, the IRQs raised in between are asserted at once.
+// Then a test can send messages that no tick comes between, as a fast NS does.
+void sim_ipc_hold_irqs(bool hold);
 // Runs `fn` on the SP thread between two messages and blocks until it returns.
 // This is the sim's way into SP calls that no opcode reaches.
 void sim_ipc_run_on_sp(void (*fn)(void *arg), void *arg);
