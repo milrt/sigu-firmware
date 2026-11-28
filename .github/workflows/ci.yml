@@ -118,19 +118,19 @@ jobs:
         include:
           - name: desktop
             build: cmake -G Ninja -S sim -B sim/build && cmake --build sim/build
-            test: python sim/tests/run.py
+            test: python tests/run.py
           - name: sanitize
             build: >-
               cmake -G Ninja -S sim -B sim/build-asan -DCMAKE_C_COMPILER=clang
               -DSIGU_SIM_SANITIZE=ON && cmake --build sim/build-asan
-            test: SIGU_SIM=sim/build-asan/sigu-sim python sim/tests/run.py
+            test: SIGU_SIM=sim/build-asan/sigu-sim python tests/run.py
           - name: web
             build: >-
               source /opt/emsdk/emsdk_env.sh >/dev/null 2>&1 &&
               emcmake cmake -G Ninja -S sim -B sim/build-web && cmake --build sim/build-web
             test: >-
               source /opt/emsdk/emsdk_env.sh >/dev/null 2>&1 &&
-              SIGU_SIM_WEB=1 python sim/tests/run.py
+              SIGU_SIM_WEB=1 python tests/run.py
           # libFuzzer, 60 s a target, from the make_corpus.py seeds. A target uses one core, so
           # the targets run in parallel, one per core. xargs fails if any target fails.
           - name: fuzz

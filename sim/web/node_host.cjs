@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 // Runs the web build in node with the same stdin protocol as `sigu-sim --headless`, so the
-// tests in sim/tests can drive both. The wallet is in memory, the card is a host folder.
+// tests in tests/ can drive both. The wallet is in memory, the card is a host folder.
 //
 //   node sim/web/node_host.cjs <build-web dir> [--card DIR]
 

@@ -1,12 +1,23 @@
 # Copyright (C) 2026 milrt <milrt@proton.me>
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-"""Runs the sim tests in parallel, one test per process. Same tests, same checks.
+"""Runs the wallet tests in parallel, one test per process. Same tests, same checks.
 
-    sim/.venv/bin/python sim/tests/run.py [-j N] [test_name ...]
+    sim/.venv/bin/python tests/run.py [-j N] [test_name ...]
 
-Most of a test is the sim waiting in real time, so the tests can share the CPUs. Each test
-starts its own sim with its own folders. SIGU_SIM and SIGU_SIM_WEB work as with unittest.
+The tests are end-to-end tests of the wallet firmware.
+They run the SP, NS and MCUboot sources on the sim,
+drive the panel with key presses, as a user does, and call the SP as a malicious NS.
+One test_*.py per feature.
+sim.py runs one sim, case.py is the base class and images.py makes the install images.
+They use the test wallet and fixtures of sim/txlab.py,
+and test_txlab.py checks txlab itself (no sim needed).
+
+Most of a test is the sim waiting in real time, so the tests can share the CPUs.
+Each test starts its own sim with its own folders.
+`python -m unittest discover -s tests -v` runs them one after the other.
+With SIGU_SIM_WEB=1 they run the WebAssembly build (sim/build-web) in node instead.
+SIGU_SIM and SIGU_SIM_WEB work as with unittest.
 """
 
 import argparse
@@ -61,7 +72,9 @@ def main() -> int:
     with ThreadPoolExecutor(max_workers=max(1, args.j)) as pool:
         for future in as_completed([pool.submit(run_one, i) for i in ids]):
             test_id, code, secs, out = future.result()
-            name = test_id.rsplit(".", 1)[-1]
+            # test_install.InstallTest.test_x prints as "install  test_x".
+            parts = test_id.split(".")
+            name = f"{parts[-3].removeprefix('test_'):<16} {parts[-1]}"
             print(f"{'ok  ' if code == 0 else 'FAIL'} {secs:5.1f}s  {name}", flush=True)
             if code != 0:
                 failed.append((name, out))

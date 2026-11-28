@@ -76,23 +76,26 @@ the card and downloads the signed files. From the browser console, `sigu.command
 
 ## Tests
 
-The tests drive the panel with key presses. They sign the example PSBT of `sim/tests/txlab.py`
-(the test wallet and a reference signer) from the card and check it against the bytes the
-device signed. They need Python 3.10 or newer and `sim/requirements.txt`. The venv from the
+`tests/` (in the repo root) holds the end-to-end tests of the wallet firmware on this sim, one
+file per feature. `sim.py` runs one sim, `case.py` is the base class and `images.py` makes the
+install images. The tests drive the panel with key presses, and call the SP as a malicious NS.
+They sign the example PSBT of `sim/txlab.py` (the test wallet and a reference signer) from the
+card and check it against the bytes the device signed. `tests/test_txlab.py` checks txlab
+itself. They need Python 3.10 or newer and `sim/requirements.txt`. The venv from the
 [README](../README.md#simulator) has it, or make one:
 
 ```sh
 python3 -m venv sim/.venv
 sim/.venv/bin/pip install -r sim/requirements.txt
-sim/.venv/bin/python sim/tests/run.py
-SIGU_SIM_WEB=1 sim/.venv/bin/python sim/tests/run.py
+sim/.venv/bin/python tests/run.py
+SIGU_SIM_WEB=1 sim/.venv/bin/python tests/run.py
 ```
 
 The last line runs the WebAssembly build in node (`sim/web/node_host.cjs`), with the same
 tests. `run.py` runs the tests in parallel, one sim per test, because most of a test is the
-sim waiting in real time. It takes about 20 s instead of 3 min. `-j N` sets how many run at
-once, and names pick tests (`run.py wipe`). Plain `python -m unittest discover -s sim/tests`
-still works, one test after the other.
+sim waiting in real time. It takes about 40 s instead of 8 min. `-j N` sets how many run at
+once. Names pick tests (`run.py wipe`) or a whole file (`run.py test_install.`, with the dot).
+Plain `python -m unittest discover -s tests` still works, one test after the other.
 
 ## Sanitizers and fuzzing
 
@@ -104,7 +107,7 @@ The same tests under ASan and UBSan:
 ```sh
 cmake -S sim -B sim/build-asan -DSIGU_SIM_SANITIZE=ON
 cmake --build sim/build-asan -j
-SIGU_SIM=sim/build-asan/sigu-sim sim/.venv/bin/python sim/tests/run.py
+SIGU_SIM=sim/build-asan/sigu-sim sim/.venv/bin/python tests/run.py
 ```
 
 `fuzz/` has libFuzzer targets for the code that reads NS input: `fuzz_psbt` (the PSBT parser and

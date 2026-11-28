@@ -40,7 +40,7 @@ release signing keys, and any script other than single-sig P2WPKH with `SIGHASH_
 | `app/shared/` | Built into both: the ABI, wire records, hashes, addresses, image layout, descriptor |
 | `app/mcuboot_hooks/` | MCUboot hooks that check every swap against the install record |
 | `sim/` | The host simulator, see below |
-| `sim/tests/` | The sim tests. `txlab.py` is the test wallet and a reference PSBT signer. |
+| `tests/` | The end-to-end wallet tests on the sim, one file per feature. `sim/txlab.py` is their test wallet and a reference PSBT signer. |
 
 ## SP main loop
 

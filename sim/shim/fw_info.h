@@ -1,7 +1,7 @@
 // Copyright (C) 2025 milrt <milrt@proton.me>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-// NCS fw_info, as NS reads it, with the nRF54L magic. sim/tests uses the same values.
+// NCS fw_info, as NS reads it, with the nRF54L magic. tests/images.py uses the same values.
 
 #pragma once
 

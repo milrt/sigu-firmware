@@ -1,14 +1,17 @@
 # Copyright (C) 2026 milrt <milrt@proton.me>
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-"""Host tests for txlab. They need no sim. run.py runs them with the sim tests."""
+"""Host tests for txlab. They need no sim. run.py runs them with the wallet tests."""
 
 import base64
+import sys
 import unittest
+from pathlib import Path
 
 from btclib.psbt.psbt import Psbt
 
-import txlab
+sys.path.append(str(Path(__file__).resolve().parents[1] / "sim"))
+import txlab  # noqa: E402
 
 
 class TxlabTest(unittest.TestCase):

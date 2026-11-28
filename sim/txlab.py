@@ -4,7 +4,7 @@
 """The test wallet and a reference signer for the sim tests.
 
 It builds a PSBT, signs one the way the partition signs, and checks a PSBT the
-device gave back. sim/tests and sim/fuzz/make_corpus.py import it.
+device gave back. tests/ and sim/fuzz/make_corpus.py import it.
 """
 
 import base64

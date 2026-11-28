@@ -15,7 +15,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT / "sim/tests"))
+sys.path.insert(0, str(ROOT / "sim"))
 
 import txlab  # noqa: E402
 from btclib.psbt.psbt import Psbt  # noqa: E402

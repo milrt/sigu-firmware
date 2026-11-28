@@ -19,5 +19,5 @@ zcbor==0.8.1
 setuptools==80.10.1
 # TF-M manifest tool
 jinja2==3.1.6
-# sim/tests
+# tests/ and sim/txlab.py
 btclib==2026.9.10

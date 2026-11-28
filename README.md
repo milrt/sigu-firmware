@@ -49,7 +49,7 @@ Build, run and test, from `sigu-firmware/`:
 ```sh
 cmake -S sim -B sim/build && cmake --build sim/build -j
 sim/build/sigu-sim
-python sim/tests/run.py
+python tests/run.py
 ```
 
 The web build, scripting and fuzzing are in [sim/README.md](sim/README.md).
@@ -92,7 +92,7 @@ eval "$(nrfutil sdk-manager toolchain env --as-script sh --ncs-version v3.4.0)"
 ```
 
 The toolchain puts its own Python first on the PATH, and it does not have the sim's packages.
-In that shell, run the sim tests with the venv's Python: `../.venv/bin/python sim/tests/run.py`
+In that shell, run the tests with the venv's Python: `../.venv/bin/python tests/run.py`
 (or `sim/.venv/bin/python`, with the venv from [sim/README.md](sim/README.md#tests)).
 
 The [nRF Connect for VS Code](https://marketplace.visualstudio.com/items?itemName=nordic-semiconductor.nrf-connect)
