@@ -76,7 +76,7 @@ static void test_serialize_deserialize()
 
     char psbt_base64_deserialized[4096 * 2];
     size_t psbt_base64_len_deserialized;
-    int res = base64_encode(psbt_base64_deserialized, sizeof(psbt_base64_deserialized),
+    int res = base64_encode((uint8_t *)psbt_base64_deserialized, sizeof(psbt_base64_deserialized),
                             &psbt_base64_len_deserialized, psbt_raw_deserialized,
                             psbt_raw__deserialized_size);
     TEST_ASSERT_EQUAL(0, res);
@@ -135,7 +135,8 @@ static void test_signer(void)
 
     char b64[4096 * 2];
     size_t b64_len;
-    TEST_ASSERT_EQUAL(0, base64_encode(b64, sizeof(b64), &b64_len, signed_raw, signed_raw_size));
+    TEST_ASSERT_EQUAL(
+        0, base64_encode((uint8_t *)b64, sizeof(b64), &b64_len, signed_raw, signed_raw_size));
 
     // Deterministic. secp256k1_ecdsa_sign() with a NULL nonce function is RFC6979,
     // and the randomized context only blinds the multiplication.
@@ -147,8 +148,8 @@ static void test_signer(void)
 
 static void init()
 {
-    int res =
-        base64_decode(psbt_raw, sizeof(psbt_raw), &psbt_raw_size, psbt_base64, strlen(psbt_base64));
+    int res = base64_decode(psbt_raw, sizeof(psbt_raw), &psbt_raw_size,
+                            (const uint8_t *)psbt_base64, strlen(psbt_base64));
     TEST_ASSERT_EQUAL(0, res);
 }
 

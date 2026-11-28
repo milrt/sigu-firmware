@@ -220,8 +220,9 @@ set_source_files_properties(${MCUBOOT_SOURCES} TARGET_DIRECTORY sim_mcuboot
                             PROPERTIES COMPILE_OPTIONS "-w;-DNDEBUG")
 target_compile_options(sim_mcuboot PRIVATE ${SIGU_WARNINGS})
 
-# The non-secure side: the PSA client, the PSBT code, the card thread and the health thread.
-# No shell yet.
+# The non-secure side: the PSA client, the PSBT code, the card thread, the health thread
+# and the NS self-tests. No shell yet.
+# The self-tests use the SP's test_util.c: the sim has one copy.
 set(NS_DIR ${APP_DIR}/nonsecure)
 add_library(ns STATIC
   ${NS_DIR}/bitcoin/src/bitcoin_client.c
@@ -234,10 +235,13 @@ add_library(ns STATIC
   ${NS_DIR}/files/src/install.c
   ${NS_DIR}/files/src/export.c
   ${NS_DIR}/health/src/health.c
+  ${NS_DIR}/bitcoin/tests/src/nonsecure_bitcoin_test.c
+  ${NS_DIR}/bitcoin/tests/src/psbt_test.c
 )
 target_compile_definitions(ns PUBLIC CONFIG_SIGU_SELFTEST=1 CONFIG_SIGU_WATCHDOG_TIMEOUT_MS=8000)
 # files/src for card_detect.h: sim/src/card.c gives the sim its own card_present().
-target_include_directories(ns PUBLIC ${NS_DIR}/bitcoin/include ${NS_DIR}/files/src
+target_include_directories(ns PUBLIC ${NS_DIR}/bitcoin/include ${NS_DIR}/bitcoin/tests/include
+                           ${NS_DIR}/files/src
                            PRIVATE ${NS_DIR}/bitcoin/src)
 target_link_libraries(ns PUBLIC shared sim_mcuboot)
 target_compile_options(ns PRIVATE ${SIGU_WARNINGS})

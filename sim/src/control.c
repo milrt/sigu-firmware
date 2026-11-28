@@ -32,7 +32,9 @@
 //   wallet temp <words..>     a temporary wallet, no PS and no PIN
 //                             no opcode does these, the panel does. This saves the typing.
 //   ns status                 the NS client calls:
-//   ns selftest               the SP self-tests (test SID), output on stderr
+//   ns test_secure            the SP self-tests (test SID), output on stderr
+//   ns test_nonsecure         the NS self-tests, failures on stderr.
+//                             Answers "ok passed=<n> failed=0" or "err passed=<n> failed=<n>"
 //   ns freeze|thaw            park the honest NS threads (card job, health) at their next sleep,
 //                             so a script can act as NS in their place
 //   ipc p|t <type> [vec..]    one raw psa_call as a malicious NS,
@@ -52,8 +54,10 @@
 
 #include "bitcoin/bitcoin_client.h"
 #include "bitcoin/bitcoin_core.h"
+#include "bitcoin/nonsecure_bitcoin_test.h"
 #include "drivers/input.h"
 #include "sched.h"
+#include "shared/test_util.h"
 #include "sim.h"
 #include <zephyr/dfu/mcuboot.h>
 #include <psa/client.h>
@@ -101,13 +105,26 @@ static bool reply_status(psa_status_t status, const char *text)
     return true;
 }
 
+// As `bitcoin test_nonsecure` in the shell.
+static bool ns_test_nonsecure(void)
+{
+    char text[48];
+
+    test_assert_init();
+    nonsecure_bitcoin_test_run_all();
+    test_assert_results_t *results = test_assert_get_results();
+    snprintf(text, sizeof(text), "passed=%u failed=%u", (unsigned)results->passed,
+             (unsigned)results->failure_count);
+    return results->failure_count ? reply(false, text) : reply_status(PSA_SUCCESS, text);
+}
+
 // `rest` is what follows "ns ". The words of a mnemonic stay one string.
 static bool ns_command(char *rest)
 {
     char *sub = strtok(rest, " \t\r\n");
 
     if (!sub) {
-        return reply(false, "usage: ns status|selftest|freeze|thaw");
+        return reply(false, "usage: ns status|test_secure|test_nonsecure|freeze|thaw");
     }
     if (!strcmp(sub, "status")) {
         uint32_t state = 0;
@@ -118,14 +135,17 @@ static bool ns_command(char *rest)
         snprintf(text, sizeof(text), "state=%u attempts=%u", state, attempts);
         return reply_status(st, text);
     }
-    if (!strcmp(sub, "selftest")) {
+    if (!strcmp(sub, "test_secure")) {
         return reply_status(bitcoin_client_test_run_all(), NULL);
+    }
+    if (!strcmp(sub, "test_nonsecure")) {
+        return ns_test_nonsecure();
     }
     if (!strcmp(sub, "freeze") || !strcmp(sub, "thaw")) {
         sim_ns_freeze(!strcmp(sub, "freeze"));
         return reply(true, NULL);
     }
-    return reply(false, "usage: ns status|selftest|freeze|thaw");
+    return reply(false, "usage: ns status|test_secure|test_nonsecure|freeze|thaw");
 }
 
 static int hex_nibble(char c)
